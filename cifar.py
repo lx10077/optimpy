@@ -15,12 +15,12 @@ import torch.utils.data as data
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import models.cifar as models
-from utils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig
+from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig
 
 
 model_names = sorted(name for name in models.__dict__
                      if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
-
+print(model_names)
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10/100 Training')
 # Data sets
@@ -53,10 +53,10 @@ parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metava
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 # Architecture
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet20',
+parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
-parser.add_argument('--depth', type=int, default=29, help='Model depth.')
+parser.add_argument('--depth', type=int, default=20, help='Model depth.')
 parser.add_argument('--cardinality', type=int, default=8, help='Model cardinality (group).')
 parser.add_argument('--widen-factor', type=int, default=4, help='Widen factor. 4 -> 64, 8 -> 128, ...')
 parser.add_argument('--growthRate', type=int, default=12, help='Growth rate for DenseNet.')
@@ -137,27 +137,31 @@ def main():
         model = models.__dict__[args.arch](
                     num_classes=num_classes,
                     depth=args.depth,
-                    growthRate=args.growthRate,
-                    compressionRate=args.compressionRate,
+                    growthrate=args.growthRate,
+                    compressionrate=args.compressionRate,
                     dropRate=args.drop,
                 )
     elif args.arch.startswith('wrn'):
-        model = models.__dict__[args.arch](
+        model = models.__dict__['wrn'](
                     num_classes=num_classes,
                     depth=args.depth,
                     widen_factor=args.widen_factor,
                     dropRate=args.drop,
                 )
-    elif args.arch.endswith('resnet'):
-        model = models.__dict__[args.arch](
+    elif args.arch.startswith('resnet'):
+        model = models.__dict__['resnet'](
                     num_classes=num_classes,
                     depth=args.depth,
                 )
     else:
         model = models.__dict__[args.arch](num_classes=num_classes)
 
-    model = torch.nn.DataParallel(model).cuda()
-    cudnn.benchmark = True
+    try:
+        model = torch.nn.DataParallel(model).cuda()
+        cudnn.benchmark = True
+    except:
+        pass
+
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
     criterion = nn.CrossEntropyLoss()
@@ -218,6 +222,7 @@ def main():
 
 
 def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
+    print("train")
     # switch to train mode
     model.train()
 
@@ -257,7 +262,8 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
         end = time.time()
 
         # plot progress
-        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
+        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | ' \
+                      'Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
                     batch=batch_idx + 1,
                     size=len(trainloader),
                     data=data_time.avg,
@@ -268,12 +274,14 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
                     top1=top1.avg,
                     top5=top5.avg,
                     )
+        print(bar.suffix)
         bar.next()
     bar.finish()
     return (losses.avg, top1.avg)
 
 
 def test(testloader, model, criterion, epoch, use_cuda):
+    print("test")
     global best_acc
 
     batch_time = AverageMeter()
