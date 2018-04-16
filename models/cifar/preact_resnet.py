@@ -7,6 +7,8 @@ Reference:
 import torch.nn as nn
 import torch.nn.functional as F
 
+__all__ = ["PreActResNet18", "PreActResNet34", "PreActResNet50", "PreActResNet101", "PreActResNet152"]
+
 
 class PreActBlock(nn.Module):
     """Pre-activation version of the BasicBlock. """
@@ -93,21 +95,21 @@ class PreActResNet(nn.Module):
         return out
 
 
-def PreActResNet18():
-    return PreActResNet(PreActBlock, [2, 2, 2, 2])
+def PreActResNet18(num_classes=10):
+    return PreActResNet(PreActBlock, [2, 2, 2, 2], num_classes=num_classes)
 
 
-def PreActResNet34():
-    return PreActResNet(PreActBlock, [3, 4, 6, 3])
+def PreActResNet34(num_classes=10):
+    return PreActResNet(PreActBlock, [3, 4, 6, 3], num_classes=num_classes)
 
 
-def PreActResNet50():
-    return PreActResNet(PreActBottleneck, [3, 4, 6, 3])
+def PreActResNet50(num_classes=10):
+    return PreActResNet(PreActBottleneck, [3, 4, 6, 3], num_classes=num_classes)
 
 
-def PreActResNet101():
-    return PreActResNet(PreActBottleneck, [3, 4, 23, 3])
+def PreActResNet101(num_classes=10):
+    return PreActResNet(PreActBottleneck, [3, 4, 23, 3], num_classes=num_classes)
 
 
-def PreActResNet152():
-    return PreActResNet(PreActBottleneck, [3, 8, 36, 3])
+def PreActResNet152(num_classes=10):
+    return PreActResNet(PreActBottleneck, [3, 8, 36, 3], num_classes=num_classes)

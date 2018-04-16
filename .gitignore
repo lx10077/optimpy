@@ -1,2 +1,12 @@
-data/*
-checkpoint/*
+######################
+# ignored folders
+######################
+data/
+checkpoint/
+__pycache__/
+
+
+######################
+# ignored files
+######################
+*.pyc

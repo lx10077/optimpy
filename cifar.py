@@ -19,8 +19,7 @@ from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig
 
 
 model_names = sorted(name for name in models.__dict__
-                     if name.islower() and not name.startswith("__") and callable(models.__dict__[name]))
-print(model_names)
+                     if not name.startswith("__") and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10/100 Training')
 # Data sets
@@ -53,7 +52,7 @@ parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metava
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
                     help='path to latest checkpoint (default: none)')
 # Architecture
-parser.add_argument('--arch', '-a', metavar='ARCH', default='resnet18',
+parser.add_argument('--arch', '-a', metavar='ARCH', default='ResNet18',
                     choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
 parser.add_argument('--depth', type=int, default=20, help='Model depth.')
@@ -125,41 +124,19 @@ def main():
 
     # Model
     print("==> creating model '{}'".format(args.arch))
-    if args.arch.startswith('resnext'):
-        model = models.__dict__[args.arch](
-                    cardinality=args.cardinality,
-                    num_classes=num_classes,
-                    depth=args.depth,
-                    widen_factor=args.widen_factor,
-                    dropRate=args.drop,
-                )
-    elif args.arch.startswith('densenet'):
-        model = models.__dict__[args.arch](
-                    num_classes=num_classes,
-                    depth=args.depth,
-                    growthrate=args.growthRate,
-                    compressionrate=args.compressionRate,
-                    dropRate=args.drop,
-                )
-    elif args.arch.startswith('wrn'):
-        model = models.__dict__['wrn'](
-                    num_classes=num_classes,
-                    depth=args.depth,
-                    widen_factor=args.widen_factor,
-                    dropRate=args.drop,
-                )
-    elif args.arch.startswith('resnet'):
-        model = models.__dict__['resnet'](
-                    num_classes=num_classes,
-                    depth=args.depth,
-                )
-    else:
+    try:
         model = models.__dict__[args.arch](num_classes=num_classes)
+    except Exception as e:
+        print("Fail to locate the model.")
+        print("All possible models:", model_names)
+        raise Exception(e)
 
     try:
         model = torch.nn.DataParallel(model).cuda()
         cudnn.benchmark = True
-    except:
+    except Exception as e:
+        print("Fail to use DataParallel.")
+        print(Exception(e))
         pass
 
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
@@ -210,7 +187,7 @@ def main():
                 'state_dict': model.state_dict(),
                 'acc': test_acc,
                 'best_acc': best_acc,
-                'optimizer' : optimizer.state_dict(),
+                'optimizer': optimizer.state_dict(),
             }, is_best, checkpoint=args.checkpoint)
 
     logger.close()
@@ -222,7 +199,6 @@ def main():
 
 
 def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
-    print("train")
     # switch to train mode
     model.train()
 
@@ -262,26 +238,21 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
         end = time.time()
 
         # plot progress
-        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | ' \
-                      'Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-                    batch=batch_idx + 1,
-                    size=len(trainloader),
-                    data=data_time.avg,
-                    bt=batch_time.avg,
-                    total=bar.elapsed_td,
-                    eta=bar.eta_td,
-                    loss=losses.avg,
-                    top1=top1.avg,
-                    top5=top5.avg,
-                    )
+        bar.suffix = '({batch}/{size}) Data: {data:.3f}s ' \
+                     '| Batch: {bt:.3f}s | Total: {total:} ' \
+                     '| ETA: {eta:} | Loss: {loss:.4f} ' \
+                     '| top1: {top1: .4f} | top5: {top5: .4f}' \
+                     ''.format(batch=batch_idx + 1, size=len(trainloader), data=data_time.avg,
+                               bt=batch_time.avg, total=bar.elapsed_td,
+                               eta=bar.eta_td, loss=losses.avg,
+                               top1=top1.avg, top5=top5.avg)
         print(bar.suffix)
         bar.next()
     bar.finish()
-    return (losses.avg, top1.avg)
+    return losses.avg, top1.avg
 
 
 def test(testloader, model, criterion, epoch, use_cuda):
-    print("test")
     global best_acc
 
     batch_time = AverageMeter()
@@ -318,26 +289,25 @@ def test(testloader, model, criterion, epoch, use_cuda):
         end = time.time()
 
         # plot progress
-        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-                    batch=batch_idx + 1,
-                    size=len(testloader),
-                    data=data_time.avg,
-                    bt=batch_time.avg,
-                    total=bar.elapsed_td,
-                    eta=bar.eta_td,
-                    loss=losses.avg,
-                    top1=top1.avg,
-                    top5=top5.avg,
-                    )
+        bar.suffix = '({batch}/{size}) Data: {data:.3f}s ' \
+                     '| Batch: {bt:.3f}s | Total: {total:} ' \
+                     '| ETA: {eta:} | Loss: {loss:.4f} ' \
+                     '| top1: {top1: .4f} | top5: {top5: .4f}' \
+                     ''.format(batch=batch_idx + 1, size=len(testloader), data=data_time.avg,
+                               bt=batch_time.avg, total=bar.elapsed_td,
+                               eta=bar.eta_td, loss=losses.avg,
+                               top1=top1.avg, top5=top5.avg)
         bar.next()
     bar.finish()
-    return (losses.avg, top1.avg)
+    return losses.avg, top1.avg
 
-def save_checkpoint(state, is_best, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
+
+def save_checkpoint(states, is_best, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
     filepath = os.path.join(checkpoint, filename)
-    torch.save(state, filepath)
+    torch.save(states, filepath)
     if is_best:
         shutil.copyfile(filepath, os.path.join(checkpoint, 'model_best.pth.tar'))
+
 
 def adjust_learning_rate(optimizer, epoch):
     global state
@@ -345,6 +315,7 @@ def adjust_learning_rate(optimizer, epoch):
         state['lr'] *= args.gamma
         for param_group in optimizer.param_groups:
             param_group['lr'] = state['lr']
+
 
 if __name__ == '__main__':
     main()

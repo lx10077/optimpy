@@ -6,6 +6,8 @@ Mobile Networks for Classification, Detection and Segmentation" for more details
 import torch.nn as nn
 import torch.nn.functional as F
 
+__all__ = ["MobileNetV2"]
+
 
 class Block(nn.Module):
     """expand + depthwise + pointwise. """

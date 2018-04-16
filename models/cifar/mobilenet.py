@@ -6,6 +6,8 @@ for more details.
 import torch.nn as nn
 import torch.nn.functional as F
 
+__all__ = ["MobileNet"]
+
 
 class Block(nn.Module):
     """Depthwise conv + Pointwise conv. """

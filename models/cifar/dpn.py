@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+__all__ = ["DPN26", "DPN92"]
+
 
 class Bottleneck(nn.Module):
     def __init__(self, last_planes, in_planes, out_planes, dense_depth, stride, first_layer):
@@ -35,7 +37,7 @@ class Bottleneck(nn.Module):
 
 
 class DPN(nn.Module):
-    def __init__(self, cfg):
+    def __init__(self, cfg, num_classes=10):
         super(DPN, self).__init__()
         in_planes, out_planes = cfg['in_planes'], cfg['out_planes']
         num_blocks, dense_depth = cfg['num_blocks'], cfg['dense_depth']
@@ -47,7 +49,7 @@ class DPN(nn.Module):
         self.layer2 = self._make_layer(in_planes[1], out_planes[1], num_blocks[1], dense_depth[1], stride=2)
         self.layer3 = self._make_layer(in_planes[2], out_planes[2], num_blocks[2], dense_depth[2], stride=2)
         self.layer4 = self._make_layer(in_planes[3], out_planes[3], num_blocks[3], dense_depth[3], stride=2)
-        self.linear = nn.Linear(out_planes[3]+(num_blocks[3]+1)*dense_depth[3], 10)
+        self.linear = nn.Linear(out_planes[3]+(num_blocks[3]+1)*dense_depth[3], num_classes)
 
     def _make_layer(self, in_planes, out_planes, num_blocks, dense_depth, stride):
         strides = [stride] + [1]*(num_blocks-1)
@@ -69,21 +71,21 @@ class DPN(nn.Module):
         return out
 
 
-def Dpn26():
+def DPN26(num_classes=10):
     cfg = {
         'in_planes': (96, 192, 384, 768),
         'out_planes': (256, 512, 1024, 2048),
         'num_blocks': (2, 2, 2, 2),
         'dense_depth': (16, 32, 24, 128)
     }
-    return DPN(cfg)
+    return DPN(cfg, num_classes=num_classes)
 
 
-def Dpn92():
+def DPN92(num_classes=10):
     cfg = {
         'in_planes': (96, 192, 384, 768),
         'out_planes': (256, 512, 1024, 2048),
         'num_blocks': (3, 4, 20, 3),
         'dense_depth': (16, 32, 24, 128)
     }
-    return DPN(cfg)
+    return DPN(cfg, num_classes=num_classes)

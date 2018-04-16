@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+__all__ = ["PNASNetA", "PNASNetB"]
+
 
 class SepConv(nn.Module):
     """Separable Convolution. """
@@ -71,7 +73,7 @@ class CellB(nn.Module):
 
 
 class PNASNet(nn.Module):
-    def __init__(self, cell_type, num_cells, num_planes):
+    def __init__(self, cell_type, num_cells, num_planes, num_classes=10):
         super(PNASNet, self).__init__()
         self.in_planes = num_planes
         self.cell_type = cell_type
@@ -85,7 +87,7 @@ class PNASNet(nn.Module):
         self.layer4 = self._downsample(num_planes*4)
         self.layer5 = self._make_layer(num_planes*4, num_cells=6)
 
-        self.linear = nn.Linear(num_planes * 4, 10)
+        self.linear = nn.Linear(num_planes * 4, num_classes)
 
     def _make_layer(self, planes, num_cells):
         layers = []
@@ -111,9 +113,9 @@ class PNASNet(nn.Module):
         return out
 
 
-def PNASNetA():
-    return PNASNet(CellA, num_cells=6, num_planes=44)
+def PNASNetA(num_classes=10):
+    return PNASNet(CellA, num_cells=6, num_planes=44, num_classes=num_classes)
 
 
-def PNASNetB():
-    return PNASNet(CellB, num_cells=6, num_planes=32)
+def PNASNetB(num_classes=10):
+    return PNASNet(CellB, num_cells=6, num_planes=32, num_classes=num_classes)
