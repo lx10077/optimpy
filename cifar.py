@@ -5,7 +5,6 @@ import os
 import shutil
 import time
 import random
-import sys
 import torch
 import torch.nn as nn
 import torch.nn.parallel
@@ -16,7 +15,6 @@ from tensorboardX import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import models.cifar as models
-
 from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, get_flat_grad_from, get_flat_para_from
 
 
@@ -246,8 +244,8 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer):
         end = time.time()
 
         # measure gradient norms and parameter norms
-        grad_norm = torch.norm(get_flat_grad_from(model))
-        para_norm = torch.norm(get_flat_para_from(model))
+        grad_norm = torch.norm(get_flat_grad_from(model.parameters()))
+        para_norm = torch.norm(get_flat_para_from(model.parameters()))
         grad_norms.update(grad_norm.data[0], inputs.size(0))
         para_norms.update(para_norm.data[0], inputs.size(0))
 

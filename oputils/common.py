@@ -2,9 +2,9 @@ import torch
 from torch.autograd import Variable
 
 
-def get_flat_grad_from(model, grad_grad=False):
+def get_flat_grad_from(model_params, grad_grad=False):
     grads = []
-    for param in model.parameters():
+    for param in model_params:
         if grad_grad:
             grads.append(param.grad.grad.view(-1))
         else:
@@ -17,9 +17,9 @@ def get_flat_grad_from(model, grad_grad=False):
     return flat_grad
 
 
-def get_flat_para_from(model):
+def get_flat_para_from(model_params):
     params = []
-    for param in model.parameters():
+    for param in model_params:
         params.append(param.data.view(-1))
 
     flat_params = torch.cat(params)
