@@ -57,11 +57,6 @@ parser.add_argument('--resume', default='', type=str, metavar='PATH',
 parser.add_argument('--arch', '-a', metavar='ARCH', default='ResNet18',
                     choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
-parser.add_argument('--depth', type=int, default=20, help='Model depth.')
-parser.add_argument('--cardinality', type=int, default=8, help='Model cardinality (group).')
-parser.add_argument('--widen-factor', type=int, default=4, help='Widen factor. 4 -> 64, 8 -> 128, ...')
-parser.add_argument('--growthRate', type=int, default=12, help='Growth rate for DenseNet.')
-parser.add_argument('--compressionRate', type=int, default=2, help='Compression Rate (theta) for DenseNet.')
 # Miscs
 parser.add_argument('--manualSeed', type=int, help='manual seed')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
@@ -154,7 +149,11 @@ def main():
     if args.resume:
         # Load checkpoint.
         print('==> Resuming from checkpoint..')
-        assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+        if type(args.resume, str):
+            assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+        if type(args.resume, bool):
+            print("Using default checkpoint..")
+            args.resume = "checkpoint/" + log_name + '-checkpoint.pth'
         args.checkpoint = os.path.dirname(args.resume)
         checkpoint = torch.load(args.resume)
         best_acc = checkpoint['best_acc']
@@ -268,7 +267,6 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer):
               ''.format(batch=batch_idx + 1, size=len(trainloader), data=data_time.avg,
                         bt=batch_time.avg, total=bar.elapsed_td, eta=bar.eta_td, loss=losses.avg,
                         top1=top1.avg, top5=top5.avg)
-        print(msg)
         bar.suffix = msg
         bar.next()
     bar.finish()
@@ -323,7 +321,6 @@ def test(testloader, model, criterion, epoch, use_cuda, writer):
               ''.format(batch=batch_idx + 1, size=len(testloader), data=data_time.avg,
                         bt=batch_time.avg, total=bar.elapsed_td, eta=bar.eta_td, loss=losses.avg,
                         top1=top1.avg, top5=top5.avg)
-        sys.stdout.write(msg)
         bar.suffix = msg
         bar.next()
     bar.finish()
@@ -336,6 +333,12 @@ def save_checkpoint(states, is_best, checkpoint='checkpoint', suffix='-checkpoin
     torch.save(states, filepath)
     if is_best:
         shutil.copyfile(filepath, os.path.join(checkpoint, log_name + '-model_best.pth'))
+
+
+def load_checkpoint(checkpoint='checkpoint', suffix='-checkpoint.pth'):
+    filename = log_name + suffix
+    filepath = os.path.join(checkpoint, filename)
+    return torch.load(filepath)
 
 
 def adjust_learning_rate(optimizer, epoch):
