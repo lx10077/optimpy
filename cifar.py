@@ -5,17 +5,19 @@ import os
 import shutil
 import time
 import random
-
+import sys
 import torch
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import torch.utils.data as data
+from tensorboardX import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import models.cifar as models
-from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig
+
+from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, get_flat_grad_from, get_flat_para_from
 
 
 model_names = sorted(name for name in models.__dict__
@@ -27,7 +29,7 @@ parser.add_argument('-d', '--dataset', default='cifar10', type=str)
 parser.add_argument('-j', '--workers', default=4, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 # Optimization options
-parser.add_argument('--epochs', default=300, type=int, metavar='N',
+parser.add_argument('--epochs', default=250, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -87,6 +89,7 @@ if use_cuda:
     torch.cuda.manual_seed_all(args.manualSeed)
 
 best_acc = 0  # best test accuracy
+log_name = "resnet18-baseline"
 
 
 def main():
@@ -132,8 +135,10 @@ def main():
         raise Exception(e)
 
     try:
+        print('Using', torch.cuda.device_count(), 'GPUs.')
         model = torch.nn.DataParallel(model).cuda()
         cudnn.benchmark = True
+        print('Using CUDA.')
     except Exception as e:
         print("Fail to use DataParallel.")
         print(Exception(e))
@@ -156,14 +161,16 @@ def main():
         start_epoch = checkpoint['epoch']
         model.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title, resume=True)
+        logger = Logger(os.path.join(args.checkpoint, log_name + '.txt'), title=title, resume=True)
     else:
-        logger = Logger(os.path.join(args.checkpoint, 'log.txt'), title=title)
+        logger = Logger(os.path.join(args.checkpoint, log_name + '.txt'), title=title)
         logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
+    writer = SummaryWriter(os.path.join(args.checkpoint, log_name))
 
     if args.evaluate:
         print('\nEvaluation only')
-        test_loss, test_acc = test(testloader, model, criterion, start_epoch, use_cuda)
+        test_writer = SummaryWriter(os.path.join(args.checkpoint, log_name + '-test'))
+        test_loss, test_acc = test(testloader, model, criterion, start_epoch, use_cuda, test_writer)
         print(' Test Loss:  %.8f, Test Acc:  %.2f' % (test_loss, test_acc))
         return
 
@@ -173,8 +180,8 @@ def main():
 
         print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, args.epochs, state['lr']))
 
-        train_loss, train_acc = train(trainloader, model, criterion, optimizer, epoch, use_cuda)
-        test_loss, test_acc = test(testloader, model, criterion, epoch, use_cuda)
+        train_loss, train_acc = train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer)
+        test_loss, test_acc = test(testloader, model, criterion, epoch, use_cuda, writer)
 
         # append logger file
         logger.append([state['lr'], train_loss, test_loss, train_acc, test_acc])
@@ -198,13 +205,15 @@ def main():
     print(best_acc)
 
 
-def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
+def train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer):
     # switch to train mode
     model.train()
 
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
+    grad_norms = AverageMeter()
+    para_norms = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
     end = time.time()
@@ -237,22 +246,36 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda):
         batch_time.update(time.time() - end)
         end = time.time()
 
+        # measure gradient norms and parameter norms
+        grad_norm = torch.norm(get_flat_grad_from(model))
+        para_norm = torch.norm(get_flat_para_from(model))
+        grad_norms.update(grad_norm.data[0], inputs.size(0))
+        para_norms.update(para_norm.data[0], inputs.size(0))
+
+        i = epoch * len(trainloader) + batch_idx
+        writer.add_scalar("batch_loss", loss.data[0], i)
+        writer.add_scalar("batch_loss_avg", losses.avg, i)
+        writer.add_scalar("batch_top1", top1.avg, i)
+        writer.add_scalar("batch_top5", top5.avg, i)
+        writer.add_scalar("batch_grad_norm", grad_norm.data[0], i)
+        writer.add_scalar("batch_grad_norm_avg", grad_norms.avg, i)
+        writer.add_scalar("batch_para_norm", para_norm.data[0], i)
+        writer.add_scalar("batch_para_norm_avg", para_norms.avg, i)
+
         # plot progress
-        bar.suffix = '({batch}/{size}) Data: {data:.3f}s ' \
-                     '| Batch: {bt:.3f}s | Total: {total:} ' \
-                     '| ETA: {eta:} | Loss: {loss:.4f} ' \
-                     '| top1: {top1: .4f} | top5: {top5: .4f}' \
-                     ''.format(batch=batch_idx + 1, size=len(trainloader), data=data_time.avg,
-                               bt=batch_time.avg, total=bar.elapsed_td,
-                               eta=bar.eta_td, loss=losses.avg,
-                               top1=top1.avg, top5=top5.avg)
-        print(bar.suffix)
+        msg = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} ' \
+              '| ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}' \
+              ''.format(batch=batch_idx + 1, size=len(trainloader), data=data_time.avg,
+                        bt=batch_time.avg, total=bar.elapsed_td, eta=bar.eta_td, loss=losses.avg,
+                        top1=top1.avg, top5=top5.avg)
+        print(msg)
+        bar.suffix = msg
         bar.next()
     bar.finish()
     return losses.avg, top1.avg
 
 
-def test(testloader, model, criterion, epoch, use_cuda):
+def test(testloader, model, criterion, epoch, use_cuda, writer):
     global best_acc
 
     batch_time = AverageMeter()
@@ -288,25 +311,31 @@ def test(testloader, model, criterion, epoch, use_cuda):
         batch_time.update(time.time() - end)
         end = time.time()
 
+        i = epoch * len(testloader) + batch_idx
+        writer.add_scalar("test_batch_loss", loss.data[0], i)
+        writer.add_scalar("test_batch_loss_avg", losses.avg, i)
+        writer.add_scalar("test_batch_top1", top1.avg, i)
+        writer.add_scalar("test_batch_top5", top5.avg, i)
+
         # plot progress
-        bar.suffix = '({batch}/{size}) Data: {data:.3f}s ' \
-                     '| Batch: {bt:.3f}s | Total: {total:} ' \
-                     '| ETA: {eta:} | Loss: {loss:.4f} ' \
-                     '| top1: {top1: .4f} | top5: {top5: .4f}' \
-                     ''.format(batch=batch_idx + 1, size=len(testloader), data=data_time.avg,
-                               bt=batch_time.avg, total=bar.elapsed_td,
-                               eta=bar.eta_td, loss=losses.avg,
-                               top1=top1.avg, top5=top5.avg)
+        msg = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} ' \
+              '| ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}' \
+              ''.format(batch=batch_idx + 1, size=len(testloader), data=data_time.avg,
+                        bt=batch_time.avg, total=bar.elapsed_td, eta=bar.eta_td, loss=losses.avg,
+                        top1=top1.avg, top5=top5.avg)
+        sys.stdout.write(msg)
+        bar.suffix = msg
         bar.next()
     bar.finish()
     return losses.avg, top1.avg
 
 
-def save_checkpoint(states, is_best, checkpoint='checkpoint', filename='checkpoint.pth.tar'):
+def save_checkpoint(states, is_best, checkpoint='checkpoint', suffix='-checkpoint.pth'):
+    filename = log_name + suffix
     filepath = os.path.join(checkpoint, filename)
     torch.save(states, filepath)
     if is_best:
-        shutil.copyfile(filepath, os.path.join(checkpoint, 'model_best.pth.tar'))
+        shutil.copyfile(filepath, os.path.join(checkpoint, log_name + '-model_best.pth'))
 
 
 def adjust_learning_rate(optimizer, epoch):
