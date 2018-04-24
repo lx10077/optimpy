@@ -3,8 +3,9 @@ from torch.optim.optimizer import Optimizer, required
 
 
 class RiemannSGD(Optimizer):
-    def __init__(self, params, lr=required, momentum=0, dampening=0, weight_decay=0, nesterov=False):
-        defaults = dict(lr=lr, momentum=momentum, dampening=dampening,
+    def __init__(self, params, lr_r=required, lr_w=required, momentum=0,
+                 dampening=0, weight_decay=0, nesterov=False):
+        defaults = dict(lr1_r=lr_r, lr_w=lr_w, momentum=momentum, dampening=dampening,
                         weight_decay=weight_decay, nesterov=nesterov)
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
@@ -50,7 +51,10 @@ class RiemannSGD(Optimizer):
                         d_p = d_p.add(momentum, buf)
                     else:
                         d_p = buf
-
-                p.data.add_(-group['lr'], d_p)
+                r = p.data.norm()
+                w = p.data.div_(r)
+                r.add_(-group['lr_r'], (w * d_p).sum())
+                w.add_(-group['lr_w'], r * d_p)
+                p.data = r * w
 
         return loss
