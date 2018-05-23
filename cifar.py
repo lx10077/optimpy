@@ -16,7 +16,7 @@ import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import models.cifar as models
 from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, get_flat_grad_from, get_flat_para_from
-
+from optimizers.riemann import RiemannSGD
 
 model_names = sorted(name for name in models.__dict__
                      if not name.startswith("__") and callable(models.__dict__[name]))
@@ -36,7 +36,11 @@ parser.add_argument('--train-batch', default=128, type=int, metavar='N',
 parser.add_argument('--test-batch', default=100, type=int, metavar='N',
                     help='test batchsize')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
-                    metavar='LR', help='initial learning rate')
+                    metavar='LR', help='initial learning rate for x')
+parser.add_argument('--lr_r', '--learning-rate-r', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate for r')
+parser.add_argument('--lr_w', '--learning-rate-w', default=0.1, type=float,
+                    metavar='LR', help='initial learning rate for w')
 parser.add_argument('--drop', '--dropout', default=0, type=float,
                     metavar='Dropout', help='Dropout ratio')
 parser.add_argument('--schedule', type=int, nargs='+', default=[150, 225],
@@ -44,7 +48,7 @@ parser.add_argument('--schedule', type=int, nargs='+', default=[150, 225],
 parser.add_argument('--gamma', type=float, default=0.1, help='LR is multiplied by gamma on schedule.')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float,
+parser.add_argument('--weight-decay', '--wd', default=0, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 # Check points
 parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metavar='PATH',
@@ -56,7 +60,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='ResNet18',
                     choices=model_names,
                     help='model architecture: ' + ' | '.join(model_names) + ' (default: resnet18)')
 # Miscs
-parser.add_argument('--manualSeed', type=int, help='manual seed')
+parser.add_argument('--manualSeed', type=int, default=0, help='manual seed')
 parser.add_argument('-e', '--evaluate', dest='evaluate', action='store_true',
                     help='evaluate model on validation set')
 # Device options
@@ -82,7 +86,7 @@ if use_cuda:
     torch.cuda.manual_seed_all(args.manualSeed)
 
 best_acc = 0  # best test accuracy
-log_name = "resnet18-baseline"
+log_name = "resnet18-rSGD"
 
 
 def main():
@@ -140,7 +144,9 @@ def main():
     print('    Total params: %.2fM' % (sum(p.numel() for p in model.parameters())/1000000.0))
 
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    # optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = RiemannSGD(model.parameters(), lr_r=args.lr_r, lr_w=args.lr_w,
+                           momentum=args.momentum, weight_decay=args.weight_decay)
 
     # Resume
     title = 'cifar-10-' + args.arch
@@ -265,6 +271,7 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer):
               ''.format(batch=batch_idx + 1, size=len(trainloader), data=data_time.avg,
                         bt=batch_time.avg, total=bar.elapsed_td, eta=bar.eta_td, loss=losses.avg,
                         top1=top1.avg, top5=top5.avg)
+        print(msg)
         bar.suffix = msg
         bar.next()
     bar.finish()
@@ -342,9 +349,17 @@ def load_checkpoint(checkpoint='checkpoint', suffix='-checkpoint.pth'):
 def adjust_learning_rate(optimizer, epoch):
     global state
     if epoch in args.schedule:
-        state['lr'] *= args.gamma
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = state['lr']
+        try:
+            state['lr_r'] *= args.gamma
+            for param_group in optimizer.param_groups:
+                param_group['lr_r'] = state['lr_r']
+            state['lr_w'] *= args.gamma
+            for param_group in optimizer.param_groups:
+                param_group['lr_w'] = state['lr_w']
+        except:
+            state['lr'] *= args.gamma
+            for param_group in optimizer.param_groups:
+                param_group['lr'] = state['lr']
 
 
 if __name__ == '__main__':
