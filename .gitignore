@@ -1,12 +1,14 @@
 ######################
 # ignored folders
 ######################
-data/
-checkpoint/
-__pycache__/
+.idea
+data
+checkpoint
+__pycache__
 
 
 ######################
 # ignored files
 ######################
-*.pyc
+.DS_Store
+.xml

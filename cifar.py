@@ -14,8 +14,8 @@ import torch.utils.data as data
 from tensorboardX import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
-import models.cifar as models
-from oputils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, get_flat_grad_from, get_flat_para_from
+import models.classification as models
+from utils import Bar, Logger, AverageMeter, accuracy, mkdir_p, savefig, get_flat_grad_from, get_flat_para_from
 from optimizers.riemann import RiemannSGD
 
 model_names = sorted(name for name in models.__dict__
@@ -149,7 +149,7 @@ def main():
                            momentum=args.momentum, weight_decay=args.weight_decay)
 
     # Resume
-    title = 'cifar-10-' + args.arch
+    title = 'classification-10-' + args.arch
     if args.resume:
         # Load checkpoint.
         print('==> Resuming from checkpoint..')
