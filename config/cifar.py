@@ -255,7 +255,7 @@ def train(trainloader, model, criterion, optimizer, epoch, use_cuda, writer):
         para_norms.update(para_norm.data[0], inputs.size(0))
 
         i = epoch * len(trainloader) + batch_idx
-        writer.add_scalar("batch_loss", loss.data[0], i)
+        writer.add_scalar("batch_loss", loss.item(), i)
         writer.add_scalar("batch_loss_avg", losses.avg, i)
         writer.add_scalar("batch_top1", top1.avg, i)
         writer.add_scalar("batch_top5", top5.avg, i)
@@ -314,7 +314,7 @@ def test(testloader, model, criterion, epoch, use_cuda, writer):
         end = time.time()
 
         i = epoch * len(testloader) + batch_idx
-        writer.add_scalar("test_batch_loss", loss.data[0], i)
+        writer.add_scalar("test_batch_loss", loss.item(), i)
         writer.add_scalar("test_batch_loss_avg", losses.avg, i)
         writer.add_scalar("test_batch_top1", top1.avg, i)
         writer.add_scalar("test_batch_top5", top5.avg, i)

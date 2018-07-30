@@ -4,12 +4,6 @@
     - progress_bar: progress bar mimic xlua.progress.
 """
 import os
-import sys
-import time
-
-import torch.nn as nn
-import torch.nn.init as init
-
 import numpy as np
 import torch
 import torchvision
@@ -31,17 +25,17 @@ def prepare_cifar10(batch_size, rtclass=False):
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
 
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+    trainset = torchvision.datasets.CIFAR10(root='../../data', train=True, download=True, transform=transform_train)
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=4)
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+    testset = torchvision.datasets.CIFAR10(root='../../data', train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
     return (trainloader, testloader) if not rtclass else (trainloader, testloader, classes)
 
 
-def mixup_data(x, y, alpha=1.0, use_cuda=True):
+def mixup_data(x, y, alpha=1.0, use_cuda=False):
     """Compute the mixup data. Return mixed inputs, pairs of targets, and lambda."""
     if alpha > 0.:
         lam = np.random.beta(alpha, alpha)
@@ -53,44 +47,13 @@ def mixup_data(x, y, alpha=1.0, use_cuda=True):
     else:
         index = torch.randperm(batch_size)
 
-    mixed_x = lam * x + (1 - lam) * x[index,:]
+    mixed_x = lam * x + (1 - lam) * x[index, :]
     y_a, y_b = y, y[index]
     return mixed_x, y_a, y_b, lam
 
 
 def mixup_criterion(y_a, y_b, lam):
     return lambda criterion, pred: lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
-
-
-def get_mean_and_std(dataset):
-    """Compute the mean and std value of dataset."""
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
-    mean = torch.zeros(3)
-    std = torch.zeros(3)
-    print('==> Computing mean and std..')
-    for inputs, targets in dataloader:
-        for i in range(3):
-            mean[i] += inputs[:, i, :, :].mean()
-            std[i] += inputs[:, i, :, :].std()
-    mean.div_(len(dataset))
-    std.div_(len(dataset))
-    return mean, std
-
-
-def init_params(net):
-    """Init layer parameters."""
-    for m in net.modules():
-        if isinstance(m, nn.Conv2d):
-            init.kaiming_normal(m.weight, mode='fan_out')
-            if m.bias:
-                init.constant(m.bias, 0)
-        elif isinstance(m, nn.BatchNorm2d):
-            init.constant(m.weight, 1)
-            init.constant(m.bias, 0)
-        elif isinstance(m, nn.Linear):
-            init.normal(m.weight, std=1e-3)
-            if m.bias:
-                init.constant(m.bias, 0)
 
 
 def make_train_path(train_prefix=None):
@@ -121,3 +84,9 @@ def make_soft_link(base_path, path):
     elif os.path.realpath(path) != os.path.realpath(base_path):
         os.system('rm {}'.format(path))
         os.system('ln -s {} {}'.format(base_path, path))
+
+
+def mkdir(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+    return path

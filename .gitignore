@@ -5,6 +5,7 @@
 data
 checkpoint
 __pycache__
+train_log
 
 
 ######################
