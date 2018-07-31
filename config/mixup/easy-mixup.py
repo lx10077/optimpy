@@ -10,7 +10,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from models import *
-from helper import mixup_data, mixup_criterion, prepare_cifar10, make_train_path, mkdir
+from utils.common import prepare_cifar10
+from config.mixup.helper import make_train_path, mkdir, mixup_data, mixup_criterion
 from tensorboardX import SummaryWriter
 
 
@@ -22,8 +23,8 @@ parser.add_argument('--alpha', default=1., type=float, help='interpolation stren
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
 args = parser.parse_args()
 torch.manual_seed(args.seed)
-
 use_cuda = torch.cuda.is_available()
+
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 batch_size = 128
@@ -37,17 +38,23 @@ if use_cuda:
 
 # Data
 trainloader, testloader = prepare_cifar10(batch_size)
+train_path = make_train_path()
+checkpoint_folder = mkdir(os.path.join(train_path, 'checkpoint'))
+exp_name = 'ckpt.t7.' + args.sess + '_' + str(args.seed)
 
 # Model
 if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
-    assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.t7.' + args.sess + '_' + str(args.seed))
-    net = checkpoint['net']
-    best_acc = checkpoint['acc']
-    start_epoch = checkpoint['epoch'] + 1
-    torch.set_rng_state(checkpoint['rng_state'])
+    assert os.path.isdir(checkpoint_folder), 'Error: no checkpoint directory found!'
+    try:
+        checkpoint = torch.load(os.path.join(checkpoint_folder, exp_name))
+        net = checkpoint['net']
+        best_acc = checkpoint['acc']
+        start_epoch = checkpoint['epoch'] + 1
+        torch.set_rng_state(checkpoint['rng_state'])
+    except Exception as e:
+        raise Exception(e)
 else:
     print('==> Building model..')
     # net = VGG('VGG19')
@@ -135,22 +142,23 @@ def test(epoch):
     acc = 100.*test_acc/test_total
     if acc > best_acc:
         best_acc = acc
-        checkpoint(acc, epoch)
+        save_checkpoint(acc, epoch)
     return test_loss/len(testloader), 100.*test_acc/test_total
 
 
-def checkpoint(acc, epoch):
+def save_checkpoint(acc, epoch):
     # Save checkpoint.
-    print('Saving..')
+    print('==> Saving..')
     state = {
         'net': net,
         'acc': acc,
         'epoch': epoch,
         'rng_state': torch.get_rng_state()
     }
-    if not os.path.isdir('checkpoint'):
-        os.mkdir('checkpoint')
-    torch.save(state, './checkpoint/ckpt.t7.' + args.sess + '_' + str(args.seed))
+    save_path = os.path.join(checkpoint_folder, exp_name)
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    torch.save(state, save_path)
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -168,7 +176,7 @@ def adjust_learning_rate(optimizer, epoch):
 
 
 train_path = make_train_path()
-result_folder = mkdir(os.path.join(train_path, 'results'))
+result_folder = os.path.join(train_path, 'results')
 train_event_folder = mkdir(os.path.join(train_path, 'train.event'))
 val_event_folder = mkdir(os.path.join(train_path, 'val.event'))
 

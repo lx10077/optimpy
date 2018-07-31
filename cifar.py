@@ -50,10 +50,10 @@ parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
 parser.add_argument('--weight-decay', '--wd', default=0, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
 # Check points
-parser.add_argument('-c', '--checkpoint', default='checkpoint', type=str, metavar='PATH',
-                    help='path to save checkpoint (default: checkpoint)')
+parser.add_argument('-c', '--save_checkpoint', default='save_checkpoint', type=str, metavar='PATH',
+                    help='path to save save_checkpoint (default: save_checkpoint)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH',
-                    help='path to latest checkpoint (default: none)')
+                    help='path to latest save_checkpoint (default: none)')
 # Architecture
 parser.add_argument('--arch', '-a', metavar='ARCH', default='ResNet18',
                     choices=model_names,
@@ -90,7 +90,7 @@ log_name = "resnet18-rSGD"
 
 def main():
     global best_acc
-    start_epoch = args.start_epoch  # start from epoch 0 or last checkpoint epoch
+    start_epoch = args.start_epoch  # start from epoch 0 or last save_checkpoint epoch
 
     if not os.path.isdir(args.checkpoint):
         mkdir_p(args.checkpoint)
@@ -150,13 +150,13 @@ def main():
     # Resume
     title = 'classification-10-' + args.arch
     if args.resume:
-        # Load checkpoint.
-        print('==> Resuming from checkpoint..')
+        # Load save_checkpoint.
+        print('==> Resuming from save_checkpoint..')
         if type(args.resume, str):
-            assert os.path.isfile(args.resume), 'Error: no checkpoint directory found!'
+            assert os.path.isfile(args.resume), 'Error: no save_checkpoint directory found!'
         if type(args.resume, bool):
-            print("Using default checkpoint..")
-            args.resume = "checkpoint/" + log_name + '-checkpoint.pth'
+            print("Using default save_checkpoint..")
+            args.resume = "save_checkpoint/" + log_name + '-save_checkpoint.pth'
         args.checkpoint = os.path.dirname(args.resume)
         checkpoint = torch.load(args.resume)
         best_acc = checkpoint['best_acc']
@@ -331,7 +331,7 @@ def test(testloader, model, criterion, epoch, use_cuda, writer):
     return losses.avg, top1.avg
 
 
-def save_checkpoint(states, is_best, checkpoint='checkpoint', suffix='-checkpoint.pth'):
+def save_checkpoint(states, is_best, checkpoint='save_checkpoint', suffix='-save_checkpoint.pth'):
     filename = log_name + suffix
     filepath = os.path.join(checkpoint, filename)
     torch.save(states, filepath)
@@ -339,7 +339,7 @@ def save_checkpoint(states, is_best, checkpoint='checkpoint', suffix='-checkpoin
         shutil.copyfile(filepath, os.path.join(checkpoint, log_name + '-model_best.pth'))
 
 
-def load_checkpoint(checkpoint='checkpoint', suffix='-checkpoint.pth'):
+def load_checkpoint(checkpoint='save_checkpoint', suffix='-save_checkpoint.pth'):
     filename = log_name + suffix
     filepath = os.path.join(checkpoint, filename)
     return torch.load(filepath)
