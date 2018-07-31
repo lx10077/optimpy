@@ -6,6 +6,8 @@ import torch.backends.cudnn as cudnn
 import os
 import argparse
 import csv
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from models import *
 from helper import mixup_data, mixup_criterion, prepare_cifar10, make_train_path, mkdir
@@ -14,7 +16,7 @@ from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
-parser.add_argument('--id', default='mixup_default', type=str, help='session id')
+parser.add_argument('-sess', default='mixup_default', type=str, help='session id')
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
@@ -170,7 +172,7 @@ result_folder = mkdir(os.path.join(train_path, 'results'))
 train_event_folder = mkdir(os.path.join(train_path, 'train.event'))
 val_event_folder = mkdir(os.path.join(train_path, 'val.event'))
 
-logname = result_folder + net.__class__.__name__ + '_' + args.id + '_' + str(args.seed) + '.csv'
+logname = result_folder + net.__class__.__name__ + '_' + args.sess + '_' + str(args.seed) + '.csv'
 train_writer = SummaryWriter(train_event_folder)
 val_writer = SummaryWriter(val_event_folder)
 

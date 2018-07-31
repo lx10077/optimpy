@@ -4,13 +4,6 @@
     - progress_bar: progress bar mimic xlua.progress.
 """
 import os
-import sys
-import time
-
-import torch.nn as nn
-import torch.nn.init as init
-
-import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
