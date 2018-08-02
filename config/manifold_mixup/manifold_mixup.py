@@ -77,7 +77,8 @@ if use_cuda:
     print('==> Using', torch.cuda.device_count(), 'GPUs.')
     cudnn.benchmark = True
     print('==> Using CUDA..')
-print("==> Don't use CUDA..")
+else:
+    print("==> Don't use CUDA..")
 
 criterion = nn.CrossEntropyLoss()
 mse_loss = nn.MSELoss()
@@ -178,8 +179,8 @@ def save_checkpoint(acc, epoch):
         'rng_state': torch.get_rng_state()
     }
     save_path = os.path.join(checkpoint_folder, exp_name)
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+    if not os.path.exists(checkpoint_folder):
+        os.makedirs(checkpoint_folder)
     torch.save(state, save_path)
 
 
