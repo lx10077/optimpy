@@ -1,29 +1,21 @@
 import os
 import numpy as np
-import torch
+import matplotlib.pyplot as plt
 
 
 __all__ = ['mixup_data', 'mixup_criterion', 'make_train_path', 'mkdir']
 
 
 # ====================================================================================== #
-# Mixup helper
+# Manifold mixup helper
 # ====================================================================================== #
-def mixup_data(x, y, alpha=1.0, use_cuda=False):
-    """Compute the mixup data. Return mixed inputs, pairs of targets, and lambda."""
+def mixup_data(alpha=1.0):
+    """Return lambda."""
     if alpha > 0.:
         lam = np.random.beta(alpha, alpha)
     else:
         lam = 1.
-    batch_size = x.size()[0]
-    if use_cuda:
-        index = torch.randperm(batch_size).cuda()
-    else:
-        index = torch.randperm(batch_size)
-
-    mixed_x = lam * x + (1 - lam) * x[index, :]
-    y_a, y_b = y, y[index]
-    return mixed_x, y_a, y_b, lam
+    return lam
 
 
 def mixup_criterion(y_a, y_b, lam):
@@ -67,3 +59,37 @@ def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
     return path
+
+
+def plot(exp_dir, train_loss_list, train_acc_list, test_loss_list, test_acc_list):
+    plt.plot(np.asarray(train_loss_list), label='train_loss')
+    plt.xlabel('evaluation step')
+    plt.ylabel('metrics')
+    plt.tight_layout()
+    plt.legend(loc='upper right')
+    plt.savefig(os.path.join(exp_dir, 'train_loss.png'))
+    plt.clf()
+
+    plt.plot(np.asarray(train_acc_list), label='train_acc')
+    plt.xlabel('evaluation step')
+    plt.ylabel('metrics')
+    plt.tight_layout()
+    plt.legend(loc='upper right')
+    plt.savefig(os.path.join(exp_dir, 'train_acc.png'))
+    plt.clf()
+
+    plt.plot(np.asarray(test_loss_list), label='test_loss')
+    plt.xlabel('evaluation step')
+    plt.ylabel('metrics')
+    plt.tight_layout()
+    plt.legend(loc='upper right')
+    plt.savefig(os.path.join(exp_dir, 'test_loss.png'))
+    plt.clf()
+
+    plt.plot(np.asarray(test_acc_list), label='test_acc')
+    plt.xlabel('evaluation step')
+    plt.ylabel('metrics')
+    plt.tight_layout()
+    plt.legend(loc='upper right')
+    plt.savefig(os.path.join(exp_dir, 'test_acc.png'))
+    plt.clf()

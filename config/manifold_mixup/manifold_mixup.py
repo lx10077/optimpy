@@ -7,20 +7,31 @@ import os
 import argparse
 import csv
 import sys
+import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from models import *
-from utils.common import prepare_cifar10
-from config.mixup.helper import make_train_path, mkdir, mixup_data, mixup_criterion
+from utils.common import prepare_dataset
+from config.manifold_mixup.helper import make_train_path, mkdir, mixup_data, mixup_criterion
+from config.manifold_mixup.manifold_model import *
 from tensorboardX import SummaryWriter
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+parser.add_argument('--dataname', type=str, default='cifar10',
+                    choices=['mnist', 'cifar10', 'cifar100'], help='Choose between Cifar10/100 and MNIST.')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
-parser.add_argument('-sess', default='mixup_default', type=str, help='session id')
+parser.add_argument('-sess', default='manifold_mixup', type=str, help='session id')
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
+parser.add_argument('--mixup', action='store_false', default=True, help='whether to use mixup or not')
+parser.add_argument('--mixup_hidden', action='store_true', default=False)
+parser.add_argument('--model_type', type=str, default='PreActResNet18',
+                    choices=['ResNet18', 'ResNet34', 'ResNet50', 'ResNet101', 'ResNet152',
+                             'PreActResNet18', 'PreActResNet34', 'PreActResNet152'])
+parser.add_argument('--initial_channels', type=int, default=64, choices=(16, 64))
+
+
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
@@ -37,7 +48,7 @@ if use_cuda:
     base_learning_rate *= n_gpu
 
 # Data
-trainloader, testloader = prepare_cifar10(batch_size)
+trainloader, testloader, class_num = prepare_dataset(batch_size)
 train_path = make_train_path()
 checkpoint_folder = mkdir(os.path.join(train_path, 'checkpoint'))
 exp_name = 'ckpt.t7.' + args.sess + '_' + str(args.seed)
@@ -57,16 +68,8 @@ if args.resume:
         raise Exception(e)
 else:
     print('==> Building model..')
-    # net = VGG('VGG19')
-    net = PreActResNet18()
-    # net = ResNet18()
-    # net = GoogLeNet()
-    # net = DenseNet121()
-    # net = ResNeXt29_2x64d()
-    # net = MobileNet()
-    # net = DPN92()
-    # net = ShuffleNetG2()
-    # net = SENet18()
+    net = eval(args.model_type)(args.mixup_hidden, args.initial_channels, class_num)
+
 
 if use_cuda:
     net.cuda()
@@ -77,6 +80,10 @@ if use_cuda:
 print("==> Don't use CUDA..")
 
 criterion = nn.CrossEntropyLoss()
+mse_loss = nn.MSELoss()
+bce_loss = torch.nn.BCELoss()
+softmax = torch.nn.Softmax(dim=1)
+
 optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, momentum=0.9, weight_decay=args.decay)
 
 
@@ -88,27 +95,42 @@ def train(epoch):
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
-        # generate mixed inputs, two one-hot label vectors and mixing coefficient
-        inputs, targets_a, targets_b, lam = mixup_data(inputs, targets, args.alpha, use_cuda)
-        optimizer.zero_grad()
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
 
-        loss_func = mixup_criterion(targets_a, targets_b, lam)
-        loss = loss_func(criterion, outputs)
-        loss.backward()
-        optimizer.step()
+        if args.mixup:
+            lam = mixup_data(args.alpha)
 
-        _, predicted = torch.max(outputs.data, 1)
-        correct = lam * predicted.eq(targets_a).sum().item() + (1 - lam) * predicted.eq(targets_b).sum().item()
+            outputs, target_reweighted, target_shuffled_onehot = net(inputs, lam, targets)
+            reweighted_target = target_reweighted * lam + target_shuffled_onehot * (1 - lam)
+            loss = bce_loss(softmax(outputs), reweighted_target)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            _, predicted = torch.max(outputs.data, 1)
+            _, target_reweighted = torch.max(target_reweighted, 1)
+            _, target_shuffled_onehot = torch.max(target_shuffled_onehot, 1)
+
+            correct = lam * predicted.eq(target_reweighted).sum().item() + (
+                    1 - lam) * predicted.eq(target_shuffled_onehot).sum().item()
+        else:
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            _, predicted = torch.max(outputs, 1)
+            correct = predicted.eq(targets).sum().item()
+
         target_size = targets.size(0)
-
         train_loss += loss.item()
         train_acc += correct
         train_total += target_size
 
-        print('[Train]    [%d/%d] sLoss: %.3f | sAcc: %.4f%%' % (
-            batch_idx, len(trainloader), train_loss/(batch_idx+1), 100.*train_acc/train_total))
+        print('[Train] %d th [%d/%d] sLoss: %.3f | sAcc: %.4f%%' % (
+            epoch, batch_idx, len(trainloader), train_loss/(batch_idx+1), 100.*train_acc/train_total))
         train_writer.add_scalar('train_loss', loss.item(), epoch * len(trainloader) + batch_idx)
         train_writer.add_scalar('train_acc', correct/batch_size, epoch * len(trainloader) + batch_idx)
 
@@ -176,7 +198,7 @@ def adjust_learning_rate(optimizer, epoch):
 
 
 train_path = make_train_path()
-result_folder = os.path.join(train_path, 'results')
+result_folder = os.path.join(train_path, 'results_')
 train_event_folder = mkdir(os.path.join(train_path, 'train.event'))
 val_event_folder = mkdir(os.path.join(train_path, 'val.event'))
 

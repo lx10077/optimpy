@@ -1,14 +1,12 @@
-"""Some helper functions for PyTorch, including:
-    - get_mean_and_std: calculate the mean and std value of dataset.
-    - msr_init: net parameter initialization.
-    - progress_bar: progress bar mimic xlua.progress.
-"""
 import os
 
 
 __all__ = ['make_train_path', 'mkdir']
 
 
+# ====================================================================================== #
+# Common helper
+# ====================================================================================== #
 def make_train_path(train_prefix=None):
     # make train dir
     cwd = os.path.dirname(__file__)
