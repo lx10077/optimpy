@@ -7,7 +7,6 @@ import os
 import argparse
 import csv
 import sys
-import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from utils.common import prepare_dataset
@@ -24,6 +23,10 @@ parser.add_argument('-sess', default='manifold_mixup', type=str, help='session i
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
+parser.add_argument('--schedule', type=int, nargs='+', default=[100, 150],
+                    help='decrease learning rate at these epochs.')
+parser.add_argument('--gammas', type=float, nargs='+', default=[0.1, 0.1],
+                    help='lr is multiplied by gamma on schedule, number of gammas should be equal to schedule')
 parser.add_argument('--mixup', action='store_false', default=True, help='whether to use mixup or not')
 parser.add_argument('--mixup_hidden', action='store_true', default=False)
 parser.add_argument('--model_type', type=str, default='PreActResNet18',
@@ -114,6 +117,7 @@ def train(epoch):
 
             correct = lam * predicted.eq(target_reweighted).sum().item() + (
                     1 - lam) * predicted.eq(target_shuffled_onehot).sum().item()
+            # correct = predicted.eq(targets).sum().item()
         else:
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -184,18 +188,18 @@ def save_checkpoint(acc, epoch):
     torch.save(state, save_path)
 
 
-def adjust_learning_rate(optimizer, epoch):
-    """decrease the learning rate at 100 and 150 epoch"""
+def adjust_learning_rate(optimizer, epoch, gammas, schedule):
+    """Sets the learning rate to the initial lr decayed by 10 every 30 epochs"""
     lr = base_learning_rate
-    if epoch <= 9 and lr > 0.1:
-        # warm-up training for large minibatch
-        lr = 0.1 + (base_learning_rate - 0.1) * epoch / 10.
-    if epoch >= 100:
-        lr /= 10
-    if epoch >= 150:
-        lr /= 10
+    assert len(gammas) == len(schedule), "length of gammas and schedule should be equal"
+    for (gamma, step) in zip(gammas, schedule):
+        if epoch >= step:
+            lr = lr * gamma
+        else:
+            break
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
+    return lr
 
 
 train_path = make_train_path()
@@ -215,7 +219,7 @@ if not os.path.exists(logname):
 
 
 for epoch in range(start_epoch, 200):
-    adjust_learning_rate(optimizer, epoch)
+    adjust_learning_rate(optimizer, epoch, args.gammas, args.schedule)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
     with open(logname, 'a') as logfile:
