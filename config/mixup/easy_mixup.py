@@ -21,6 +21,7 @@ parser.add_argument('-sess', default='mixup_default', type=str, help='session id
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
+parser.add_argument('--model', default='preactresnet', type=str, help='model type')
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
@@ -39,8 +40,10 @@ if use_cuda:
 # Data
 trainloader, testloader, class_num = prepare_dataset(batch_size)
 train_path = make_train_path()
-checkpoint_folder = mkdir(os.path.join(train_path, 'checkpoint'))
-exp_name = 'ckpt.t7.' + args.sess + '_' + str(args.seed)
+exp_name = '{}_{}_{}'.format(args.model, args.sess, str(args.seed))
+exp_folder = mkdir(os.path.join(train_path, exp_name))
+checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
+save_name = exp_name
 
 # Model
 if args.resume:
@@ -48,7 +51,7 @@ if args.resume:
     print('==> Resuming from checkpoint..')
     assert os.path.isdir(checkpoint_folder), 'Error: no checkpoint directory found!'
     try:
-        checkpoint = torch.load(os.path.join(checkpoint_folder, exp_name))
+        checkpoint = torch.load(os.path.join(checkpoint_folder, save_name))
         net = checkpoint['net']
         best_acc = checkpoint['acc']
         start_epoch = checkpoint['epoch'] + 1
@@ -57,16 +60,28 @@ if args.resume:
         raise Exception(e)
 else:
     print('==> Building model..')
-    # net = VGG('VGG19')
-    net = PreActResNet18(class_num)
-    # net = ResNet18()
-    # net = GoogLeNet()
-    # net = DenseNet121()
-    # net = ResNeXt29_2x64d()
-    # net = MobileNet()
-    # net = DPN92()
-    # net = ShuffleNetG2()
-    # net = SENet18()
+    model_type = args.model.strip().lower()
+    if model_type == 'preactresnet':
+        net = PreActResNet18(class_num)
+    elif model_type == 'vgg':
+        net = VGG19()
+    elif model_type == 'resnet':
+        net = ResNet18()
+    elif model_type == 'googlenet':
+        net = GoogLeNet()
+    elif model_type == 'densenet':
+        net = DenseNet121()
+    elif model_type == 'senet':
+        net = SENet18()
+    elif model_type == 'dpn':
+        net = DPN92()
+    elif model_type == 'shufflenet':
+        net = ShuffleNetG2()
+    elif model_type == 'mobilenet':
+        net = MobileNet()
+    else:
+        net = ResNeXt29_2x64d()
+    del model_type
 
 if use_cuda:
     net.cuda()
@@ -156,7 +171,7 @@ def save_checkpoint(acc, epoch):
         'epoch': epoch,
         'rng_state': torch.get_rng_state()
     }
-    save_path = os.path.join(checkpoint_folder, exp_name)
+    save_path = os.path.join(checkpoint_folder, save_name)
     if not os.path.exists(checkpoint_folder):
         os.makedirs(checkpoint_folder)
     torch.save(state, save_path)
@@ -176,10 +191,9 @@ def adjust_learning_rate(optimizer, epoch):
         param_group['lr'] = lr
 
 
-train_path = make_train_path()
-result_folder = os.path.join(train_path, 'results_')
-train_event_folder = mkdir(os.path.join(train_path, 'train.event'))
-val_event_folder = mkdir(os.path.join(train_path, 'val.event'))
+result_folder = os.path.join(exp_folder, 'results_')
+train_event_folder = mkdir(os.path.join(exp_folder, 'train.event'))
+val_event_folder = mkdir(os.path.join(exp_folder, 'val.event'))
 
 logname = result_folder + net.__class__.__name__ + '_' + args.sess + '_' + str(args.seed) + '.csv'
 train_writer = SummaryWriter(train_event_folder)

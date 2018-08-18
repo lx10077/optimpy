@@ -42,6 +42,7 @@ train_path = make_train_path()
 exp_name = '{}_{}_{}'.format(args.model, args.sess, str(args.seed))
 exp_folder = mkdir(os.path.join(train_path, exp_name))
 checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
+save_name = exp_name
 
 # Model
 if args.resume:
@@ -49,7 +50,7 @@ if args.resume:
     print('==> Resuming from checkpoint..')
     assert os.path.isdir(checkpoint_folder), 'Error: no checkpoint directory found!'
     try:
-        checkpoint = torch.load(os.path.join(checkpoint_folder, exp_name))
+        checkpoint = torch.load(os.path.join(checkpoint_folder, save_name))
         net = checkpoint['net']
         best_acc = checkpoint['acc']
         start_epoch = checkpoint['epoch'] + 1
@@ -164,7 +165,7 @@ def save_checkpoint(acc, epoch):
         'epoch': epoch,
         'rng_state': torch.get_rng_state()
     }
-    save_path = os.path.join(checkpoint_folder, exp_name)
+    save_path = os.path.join(checkpoint_folder, save_name)
     if not os.path.exists(checkpoint_folder):
         os.makedirs(checkpoint_folder)
     torch.save(state, save_path)
