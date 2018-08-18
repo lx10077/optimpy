@@ -52,9 +52,9 @@ trainloader, testloader, class_num = prepare_dataset(data_name=args.task,
                                                      batch_size=args.batchSize,
                                                      num_workers=args.workers)
 train_path = make_train_path()
-checkpoint_folder = mkdir(os.path.join(train_path, 'checkpoint'))
-exp_name = 'ckpt.t7.{}_{}_{}_{}_{}'.format(args.task, str(args.seed), args.model, args.method,
-                                           args.alpha_0)
+exp_name = '{}_{}_{}_{}_{}'.format(args.task, str(args.seed), args.model, args.method, args.alpha_0)
+exp_folder = mkdir(os.path.join(train_path, exp_name))
+checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
 
 # Model
 if args.resume:
@@ -196,9 +196,9 @@ def save_checkpoint(acc, epoch):
     torch.save(state, save_path)
 
 
-result_folder = os.path.join(train_path, 'results_')
-train_event_folder = mkdir(os.path.join(train_path, 'train.event'))
-val_event_folder = mkdir(os.path.join(train_path, 'val.event'))
+result_folder = os.path.join(exp_folder, 'results_')
+train_event_folder = mkdir(os.path.join(exp_folder, 'train.event'))
+val_event_folder = mkdir(os.path.join(exp_folder, 'val.event'))
 
 logname = result_folder + exp_name + '.csv'
 train_writer = SummaryWriter(train_event_folder)
