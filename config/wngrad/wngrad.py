@@ -8,19 +8,17 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from utils.common import prepare_dataset
-from config.hypergradient_descent.helper import make_train_path, mkdir
-from config.hypergradient_descent.model import *
-from config.hypergradient_descent.optimizer import *
+from config.wngrad.helper import make_train_path, mkdir
+from config.wngrad.model import *
+from config.wngrad.optimizer import *
 from tensorboardX import SummaryWriter
 
-parser = argparse.ArgumentParser(description='Hypergradient descent PyTorch tests',
+parser = argparse.ArgumentParser(description='WNGrad PyTorch tests',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--device', help='selected CUDA device', default=0, type=int)
 parser.add_argument('--seed', help='random seed', default=1, type=int)
 parser.add_argument('--model', help='model (logreg, mlp, vgg)', default='vgg', type=str)
-parser.add_argument('--method', help='method (sgd, sgd_hd, sgdn, sgdn_hd, adam, adam_hd)', default='adam', type=str)
-parser.add_argument('--alpha_0', help='initial learning rate', default=1e-3, type=float)
-parser.add_argument('--beta', help='learning learning rate', default=1e-6, type=float)
+parser.add_argument('--method', help='method (sgd, sgdn, adam)', default='sgd', type=str)
 parser.add_argument('--mu', help='momentum', default=0.9, type=float)
 parser.add_argument('--weightDecay', help='regularization', default=1e-4, type=float)
 parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
@@ -31,7 +29,7 @@ parser.add_argument('--workers', help='number of data loading workers', default=
 parser.add_argument('--parallel', help='parallelize', action='store_true')
 
 parser.add_argument('--resume', '-r', action='store_true', help='resume from save_checkpoint')
-parser.add_argument('--sess', default='hypergradient_descent', type=str, help='session id')
+parser.add_argument('--sess', default='wngrad', type=str, help='session id')
 args = parser.parse_args()
 args.task = 'mnist' if args.model == 'logreg' or args.model == 'mlp' else 'cifar10'
 
@@ -94,22 +92,11 @@ else:
 criterion = nn.CrossEntropyLoss()
 
 if args.method == 'sgd':
-    optimizer = SGD(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay)
-elif args.method == 'sgd_hd':
-    optimizer = SGDHD(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
-                      hypergrad_lr=args.beta)
+    optimizer = SGDWN(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay)
 elif args.method == 'sgdn':
-    optimizer = SGD(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
-                    momentum=args.mu, nesterov=True)
-elif args.method == 'sgdn_hd':
-    optimizer = SGDHD(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
-                      momentum=args.mu, nesterov=True,
-                      hypergrad_lr=args.beta)
-elif args.method == 'adam':
-    optimizer = Adam(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay)
-elif args.method == 'adam_hd':
-    optimizer = AdamHD(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
-                       hypergrad_lr=args.beta)
+    optimizer = SGDWN(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
+                      momentum=args.mu, nesterov=True)
+
 else:
     raise Exception('Unknown method: {}'.format(args.method))
 
