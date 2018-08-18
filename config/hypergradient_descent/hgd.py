@@ -118,7 +118,7 @@ print('==> Task: {}, Model: {}, Method: {}'.format(args.task, args.model, args.m
 
 
 # Training
-def train(epoch, threshold_iter=0, threshold_loss=0):
+def train(epoch, threshold_iter=0, threshold_loss=-1):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = train_acc = train_total = 0

@@ -16,19 +16,26 @@ from tensorboardX import SummaryWriter
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
+parser.add_argument('--task', help='which dataset(mnist, cifar10, cifar100)', default='cifar10', type=str)
+parser.add_argument('--method', help='method (sgd, adam)', default='sgd', type=str)
+parser.add_argument('--lr', help='initial learning rate', default=0.1, type=float)
+parser.add_argument('--mu', help='momentum', default=0.9, type=float)
+parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
+parser.add_argument('--workers', help='number of data loading workers', default=4, type=int)
 parser.add_argument('--resume', '-r', action='store_true', help='resume from save_checkpoint')
-parser.add_argument('--sess', default='cifar10_baseline', type=str, help='session id')
+parser.add_argument('--sess', default='baseline', type=str, help='session id')
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
 parser.add_argument('--model', default='preactresnet', type=str, help='model type')
+
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 
 use_cuda = torch.cuda.is_available()
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-batch_size = 128
-base_learning_rate = 0.1
+batch_size = args.batchSize
+base_learning_rate = args.lr
 
 if use_cuda:
     # data parallel
@@ -37,9 +44,11 @@ if use_cuda:
     base_learning_rate *= n_gpu
 
 # Data
-trainloader, testloader, class_num = prepare_dataset(batch_size)
+trainloader, testloader, class_num = prepare_dataset(batch_size,
+                                                     data_name=args.task,
+                                                     num_workers=args.workers)
 train_path = make_train_path()
-exp_name = '{}_{}_{}'.format(args.model, args.sess, str(args.seed))
+exp_name = '{}_{}_{}_{}_{}_{}'.format(args.sess, args.task, str(args.seed), args.model, args.method, args.lr)
 exp_folder = mkdir(os.path.join(train_path, exp_name))
 checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
 save_name = exp_name
@@ -92,7 +101,17 @@ else:
     print("==> Don't use CUDA..")
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, momentum=0.9, weight_decay=args.decay)
+if args.method == 'sgd':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+elif args.method == 'sgdn':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay,
+                          momentum=args.mu, nesterov=True)
+elif args.method == 'adam':
+    optimizer = optim.Adam(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+else:
+    raise Exception('Unknown method: {}'.format(args.method))
+
+print('==> Task: {}, Model: {}, Method: {}'.format(args.task, args.model, args.method))
 
 
 # Training

@@ -108,7 +108,7 @@ print('==> Task: {}, Model: {}, Method: {}, Lambda: {}'.format(
 
 
 # Training
-def train(epoch, threshold_iter=0, threshold_loss=0):
+def train(epoch, threshold_iter=0, threshold_loss=-1):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = train_acc = train_total = 0
