@@ -1,9 +1,14 @@
 import os
-import numpy as np
-import torch
 
 
-__all__ = ['make_train_path', 'mkdir']
+__all__ = ['scale_criterion', 'make_train_path', 'mkdir']
+
+
+# ====================================================================================== #
+# Scale helper
+# ====================================================================================== #
+def scale_criterion(criterion, lam):
+    return lambda pred, target: lam * criterion(pred, target)
 
 
 # ====================================================================================== #

@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from utils.common import prepare_dataset
-from config.wngrad.helper import make_train_path, mkdir
+from config.wngrad.helper import scale_criterion ,make_train_path, mkdir
 from config.wngrad.model import *
 from config.wngrad.optimizer import *
 from tensorboardX import SummaryWriter
@@ -22,6 +22,8 @@ parser.add_argument('--method', help='method (sgd, sgdn, adam)', default='sgd', 
 parser.add_argument('--mu', help='momentum', default=0.9, type=float)
 parser.add_argument('--weightDecay', help='regularization', default=1e-4, type=float)
 parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
+parser.add_argument('--alpha_0', help='initial learning rate', default=1, type=float)
+parser.add_argument('--lambda_0', help='ratio to scale loss function', default=0.056, type=float)
 parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=200, type=int)
 parser.add_argument('--iterations', help='stop after this many iterations (0: disregard)', default=0, type=int)
 parser.add_argument('--lossThreshold', help='stop after reaching this loss (0: disregard)', default=0, type=float)
@@ -51,8 +53,8 @@ trainloader, testloader, class_num = prepare_dataset(data_name=args.task,
                                                      num_workers=args.workers)
 train_path = make_train_path()
 checkpoint_folder = mkdir(os.path.join(train_path, 'checkpoint'))
-exp_name = 'ckpt.t7.{}_{}_{}_{}_{}_{}'.format(args.task, str(args.seed), args.model, args.method,
-                                              args.alpha_0, args.beta)
+exp_name = 'ckpt.t7.{}_{}_{}_{}_{}'.format(args.task, str(args.seed), args.model, args.method,
+                                           args.alpha_0)
 
 # Model
 if args.resume:
@@ -89,18 +91,19 @@ if use_cuda:
 else:
     print("==> Don't use CUDA..")
 
-criterion = nn.CrossEntropyLoss()
+criterion = scale_criterion(nn.CrossEntropyLoss(), args.lambda_0)
 
 if args.method == 'sgd':
     optimizer = SGDWN(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay)
 elif args.method == 'sgdn':
     optimizer = SGDWN(net.parameters(), lr=args.alpha_0, weight_decay=args.weightDecay,
                       momentum=args.mu, nesterov=True)
-
 else:
     raise Exception('Unknown method: {}'.format(args.method))
 
-print('==> Task: {}, Model: {}, Method: {}'.format(args.task, args.model, args.method))
+print('==> Task: {}, Model: {}, Method: {}, Lambda: {}'.format(
+    args.task, args.model, args.method, args.lambda_0)
+)
 
 
 # Training

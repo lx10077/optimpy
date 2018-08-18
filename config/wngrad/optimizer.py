@@ -18,7 +18,6 @@ class SGDWN(Optimizer):
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
         dampening (float, optional): dampening for momentum (default: 0)
         nesterov (bool, optional): enables Nesterov momentum (default: False)
-        hypergrad_lr (float, optional): hypergradient learning rate for the online
         tuning of the learning rate, introduced in the paper
         `Online Learning Rate Adaptation with Hypergradient Descent`_
 
@@ -112,18 +111,18 @@ class SGDWN(Optimizer):
 
         grad = self._gather_flat_grad_with_weight_decay(weight_decay)
 
-        # NOTE: SGDHD has only global state, but we register it as state for
+        # NOTE: SGDWN has only global state, but we register it as state for
         # the first param, because this helps with casting in load_state_dict
         state = self.state[self._params[0]]
-        # State initialization
-        if len(state) == 0:
-            state['grad_prev'] = torch.zeros_like(grad)
 
-        grad_prev = state['grad_prev']
         # Hypergradient for SGD
-        h = torch.dot(grad, grad_prev)
+        h = torch.dot(grad, grad)
+        print(h.item())
+
         # Hypergradient descent of the learning rate:
-        group['lr'] = group['lr'] / (1 + group['lr'] ** 2 * h)
+        print(self.param_groups[0]['lr'])
+        group['lr'] = (group['lr'] / (1 + group['lr'] ** 2 * h)).item()
+        print(self.param_groups[0]['lr'])
 
         if momentum != 0:
             if 'momentum_buffer' not in state:
@@ -136,8 +135,6 @@ class SGDWN(Optimizer):
                 grad.add_(momentum, buf)
             else:
                 grad = buf
-
-        state['grad_prev'] = grad
 
         self._add_grad(-group['lr'], grad)
 
