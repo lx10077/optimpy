@@ -24,7 +24,7 @@ parser.add_argument('--beta', help='learning learning rate', default=1e-6, type=
 parser.add_argument('--mu', help='momentum', default=0.9, type=float)
 parser.add_argument('--weightDecay', help='regularization', default=1e-4, type=float)
 parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
-parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=200, type=int)
+parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=100, type=int)
 parser.add_argument('--iterations', help='stop after this many iterations (0: disregard)', default=0, type=int)
 parser.add_argument('--lossThreshold', help='stop after reaching this loss (0: disregard)', default=0, type=float)
 parser.add_argument('--workers', help='number of data loading workers', default=4, type=int)

@@ -16,47 +16,55 @@ from tensorboardX import SummaryWriter
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--dataname', type=str, default='cifar10',
-                    choices=['mnist', 'cifar10', 'cifar100'], help='Choose between Cifar10/100 and MNIST.')
+parser.add_argument('--task', help='which dataset(mnist, cifar10, cifar100)', default='cifar10', type=str)
+parser.add_argument('--device', help='selected CUDA device', default=0, type=int)
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('-sess', default='manifold_mixup', type=str, help='session id')
+parser.add_argument('--method', help='method (sgd, sgdn, adam)', default='sgdn', type=str)
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
+parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
+parser.add_argument('--workers', help='number of data loading workers', default=4, type=int)
+parser.add_argument('--lr', help='initial learning rate', default=0.1, type=float)
+parser.add_argument('--mu', help='momentum', default=0.9, type=float)
 parser.add_argument('--schedule', type=int, nargs='+', default=[100, 150],
                     help='decrease learning rate at these epochs.')
 parser.add_argument('--gammas', type=float, nargs='+', default=[0.1, 0.1],
                     help='lr is multiplied by gamma on schedule, number of gammas should be equal to schedule')
+parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=100, type=int)
 parser.add_argument('--mixup', action='store_false', default=True, help='whether to use mixup or not')
 parser.add_argument('--mixup_hidden', action='store_true', default=False)
 parser.add_argument('--model_type', type=str, default='PreActResNet18',
                     choices=['ResNet18', 'ResNet34', 'ResNet50', 'ResNet101', 'ResNet152',
                              'PreActResNet18', 'PreActResNet34', 'PreActResNet152'])
 parser.add_argument('--initial_channels', type=int, default=64, choices=(16, 64))
-
-
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
 
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-batch_size = 128
-base_learning_rate = 0.1
+batch_size = args.batchSize
+base_learning_rate = args.lr
 
 if use_cuda:
     # data parallel
-    n_gpu = torch.cuda.device_count()
-    batch_size *= n_gpu
-    base_learning_rate *= n_gpu
+    torch.cuda.set_device(args.device)
+    torch.cuda.manual_seed(args.seed)
+    torch.backends.cudnn.enabled = True
 
 # Data
-trainloader, testloader, class_num = prepare_dataset(batch_size)
+trainloader, testloader, class_num = prepare_dataset(batch_size,
+                                                     data_name=args.task,
+                                                     num_workers=args.workers)
 train_path = make_train_path()
-exp_name = '{}_{}_{}'.format(args.model_type, args.sess, str(args.seed))
+exp_name = '{}_{}_{}_{}_{}_{}_{}'.format(args.sess, args.task, str(args.seed),
+                                         args.model_type, args.method, args.lr, args.alpha)
 exp_folder = mkdir(os.path.join(train_path, exp_name))
 checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
 save_name = exp_name
+
 
 # Model
 if args.resume:
@@ -75,13 +83,11 @@ else:
     print('==> Building model..')
     net = eval(args.model_type)(args.mixup_hidden, args.initial_channels, class_num)
 
-
 if use_cuda:
     net.cuda()
     net = torch.nn.DataParallel(net)
-    print('==> Using', torch.cuda.device_count(), 'GPUs.')
-    cudnn.benchmark = True
     print('==> Using CUDA..')
+    print('==> Using {} th GPU in all {}..'.format(args.device, torch.cuda.device_count()))
 else:
     print("==> Don't use CUDA..")
 
@@ -90,7 +96,17 @@ mse_loss = nn.MSELoss()
 bce_loss = torch.nn.BCELoss()
 softmax = torch.nn.Softmax(dim=1)
 
-optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, momentum=0.9, weight_decay=args.decay)
+if args.method == 'sgd':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+elif args.method == 'sgdn':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay,
+                          momentum=args.mu, nesterov=True)
+elif args.method == 'adam':
+    optimizer = optim.Adam(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+else:
+    raise Exception('Unknown method: {}'.format(args.method))
+
+print('==> Task: {}, Model: {}, Method: {}'.format(args.task, args.model_type, args.method))
 
 
 # Training
@@ -219,7 +235,7 @@ if not os.path.exists(logname):
         logwriter.writerow(['epoch', 'train loss', 'train acc', 'test loss', 'test acc'])
 
 
-for epoch in range(start_epoch, 200):
+for epoch in range(start_epoch, args.epochs):
     adjust_learning_rate(optimizer, epoch, args.gammas, args.schedule)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)

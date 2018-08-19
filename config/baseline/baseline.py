@@ -18,12 +18,13 @@ from tensorboardX import SummaryWriter
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--task', help='which dataset(mnist, cifar10, cifar100)', default='cifar10', type=str)
 parser.add_argument('--device', help='selected CUDA device', default=0, type=int)
-parser.add_argument('--method', help='method (sgd, adam)', default='sgd', type=str)
+parser.add_argument('--method', help='method (sgd, sgdn, adam)', default='sgdn', type=str)
 parser.add_argument('--lr', help='initial learning rate', default=0.1, type=float)
 parser.add_argument('--mu', help='momentum', default=0.9, type=float)
 parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
 parser.add_argument('--workers', help='number of data loading workers', default=4, type=int)
 parser.add_argument('--resume', '-r', action='store_true', help='resume from save_checkpoint')
+parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=100, type=int)
 parser.add_argument('--sess', default='baseline', type=str, help='session id')
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
@@ -219,7 +220,7 @@ if not os.path.exists(logname):
         logwriter.writerow(['epoch', 'train loss', 'train acc', 'test loss', 'test acc'])
 
 
-for epoch in range(start_epoch, 200):
+for epoch in range(start_epoch, args.epochs):
     adjust_learning_rate(optimizer, epoch)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)

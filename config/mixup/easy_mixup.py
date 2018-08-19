@@ -18,29 +18,40 @@ from tensorboardX import SummaryWriter
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('-sess', default='mixup_default', type=str, help='session id')
+parser.add_argument('--device', help='selected CUDA device', default=0, type=int)
+parser.add_argument('--method', help='method (sgd, adam)', default='sgd', type=str)
 parser.add_argument('--seed', default=0, type=int, help='rng seed')
 parser.add_argument('--alpha', default=1., type=float, help='interpolation strength (uniform=1., ERM=0.)')
+parser.add_argument('--batchSize', help='minibatch size', default=128, type=int)
 parser.add_argument('--decay', default=1e-4, type=float, help='weight decay (default=1e-4)')
 parser.add_argument('--model', default='preactresnet', type=str, help='model type')
+parser.add_argument('--sess', default='baseline', type=str, help='session id')
+parser.add_argument('--epochs', help='stop after this many epochs (0: disregard)', default=100, type=int)
+parser.add_argument('--task', help='which dataset(mnist, cifar10, cifar100)', default='cifar10', type=str)
+parser.add_argument('--workers', help='number of data loading workers', default=4, type=int)
+parser.add_argument('--mu', help='momentum', default=0.9, type=float)
+parser.add_argument('--lr', help='initial learning rate', default=0.1, type=float)
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 use_cuda = torch.cuda.is_available()
 
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-batch_size = 128
-base_learning_rate = 0.1
+batch_size = args.batchSize
+base_learning_rate = args.lr
 
 if use_cuda:
     # data parallel
-    n_gpu = torch.cuda.device_count()
-    batch_size *= n_gpu
-    base_learning_rate *= n_gpu
+    torch.cuda.set_device(args.device)
+    torch.cuda.manual_seed(args.seed)
+    torch.backends.cudnn.enabled = True
 
 # Data
-trainloader, testloader, class_num = prepare_dataset(batch_size)
+trainloader, testloader, class_num = prepare_dataset(batch_size,
+                                                     data_name=args.task,
+                                                     num_workers=args.workers)
 train_path = make_train_path()
-exp_name = '{}_{}_{}'.format(args.model, args.sess, str(args.seed))
+exp_name = '{}_{}_{}_{}_{}_{}'.format(args.sess, args.task, str(args.seed), args.model, args.method, args.lr)
 exp_folder = mkdir(os.path.join(train_path, exp_name))
 checkpoint_folder = mkdir(os.path.join(exp_folder, 'checkpoint'))
 save_name = exp_name
@@ -86,14 +97,22 @@ else:
 if use_cuda:
     net.cuda()
     net = torch.nn.DataParallel(net)
-    print('==> Using', torch.cuda.device_count(), 'GPUs.')
-    cudnn.benchmark = True
     print('==> Using CUDA..')
+    print('==> Using {} th GPU in all {}..'.format(args.device, torch.cuda.device_count()))
 else:
     print("==> Don't use CUDA..")
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, momentum=0.9, weight_decay=args.decay)
+
+if args.method == 'sgd':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+elif args.method == 'sgdn':
+    optimizer = optim.SGD(net.parameters(), lr=base_learning_rate, weight_decay=args.decay,
+                          momentum=args.mu, nesterov=True)
+elif args.method == 'adam':
+    optimizer = optim.Adam(net.parameters(), lr=base_learning_rate, weight_decay=args.decay)
+else:
+    raise Exception('Unknown method: {}'.format(args.method))
 
 
 # Training
@@ -206,7 +225,7 @@ if not os.path.exists(logname):
         logwriter.writerow(['epoch', 'train loss', 'train acc', 'test loss', 'test acc'])
 
 
-for epoch in range(start_epoch, 200):
+for epoch in range(start_epoch, args.epochs):
     adjust_learning_rate(optimizer, epoch)
     train_loss, train_acc = train(epoch)
     test_loss, test_acc = test(epoch)
