@@ -17,6 +17,7 @@ from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--task', help='which dataset(mnist, cifar10, cifar100)', default='cifar10', type=str)
+parser.add_argument('--device', help='selected CUDA device', default=0, type=int)
 parser.add_argument('--method', help='method (sgd, adam)', default='sgd', type=str)
 parser.add_argument('--lr', help='initial learning rate', default=0.1, type=float)
 parser.add_argument('--mu', help='momentum', default=0.9, type=float)
@@ -39,9 +40,9 @@ base_learning_rate = args.lr
 
 if use_cuda:
     # data parallel
-    n_gpu = torch.cuda.device_count()
-    batch_size *= n_gpu
-    base_learning_rate *= n_gpu
+    torch.cuda.set_device(args.device)
+    torch.cuda.manual_seed(args.seed)
+    torch.backends.cudnn.enabled = True
 
 # Data
 trainloader, testloader, class_num = prepare_dataset(batch_size,
@@ -72,7 +73,7 @@ else:
     if model_type == 'preactresnet':
         net = PreActResNet18(class_num)
     elif model_type == 'vgg':
-        net = VGG19()
+        net = VGG16(class_num)
     elif model_type == 'resnet':
         net = ResNet18()
     elif model_type == 'googlenet':
@@ -94,9 +95,8 @@ else:
 if use_cuda:
     net.cuda()
     net = torch.nn.DataParallel(net)
-    print('==> Using', torch.cuda.device_count(), 'GPUs.')
-    cudnn.benchmark = True
     print('==> Using CUDA..')
+    print('==> Using {} th GPU in all {}..'.format(args.device, torch.cuda.device_count()))
 else:
     print("==> Don't use CUDA..")
 
@@ -164,8 +164,8 @@ def test(epoch):
 
             print('[Val]      [%d/%d] sLoss: %.3f | sAcc: %.4f%%' % (
                 batch_idx, len(testloader), test_loss / (batch_idx + 1), 100. * test_acc / test_total))
-            train_writer.add_scalar('val_loss', test_loss, epoch * len(testloader) + batch_idx)
-            train_writer.add_scalar('val_acc', correct/targets.size(0), epoch * len(testloader) + batch_idx)
+            val_writer.add_scalar('val_loss', test_loss, epoch * len(testloader) + batch_idx)
+            val_writer.add_scalar('val_acc', correct/targets.size(0), epoch * len(testloader) + batch_idx)
 
     # Save checkpoint.
     acc = 100.*test_acc/test_total

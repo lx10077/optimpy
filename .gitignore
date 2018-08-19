@@ -13,3 +13,5 @@ train_log
 ######################
 .DS_Store
 .xml
+.pyc
+

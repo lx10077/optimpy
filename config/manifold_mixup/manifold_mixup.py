@@ -164,8 +164,8 @@ def test(epoch):
 
             print('[Val]      [%d/%d] sLoss: %.3f | sAcc: %.4f%%' % (
                 batch_idx, len(testloader), test_loss / (batch_idx + 1), 100. * test_acc / test_total))
-            train_writer.add_scalar('val_loss', test_loss, epoch * len(testloader) + batch_idx)
-            train_writer.add_scalar('val_acc', correct/targets.size(0), epoch * len(testloader) + batch_idx)
+            val_writer.add_scalar('val_loss', test_loss, epoch * len(testloader) + batch_idx)
+            val_writer.add_scalar('val_acc', correct/targets.size(0), epoch * len(testloader) + batch_idx)
 
     # Save checkpoint.
     acc = 100.*test_acc/test_total
